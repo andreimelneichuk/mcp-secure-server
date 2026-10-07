@@ -1,0 +1,39 @@
+# Локальный стенд: dev-issuer (вместо Keycloak) + mock корпоративного API + MCP-сервер.
+# Токен выпускается внутри контейнера issuer, где лежит приватный ключ:
+#   docker compose exec issuer python -m dev_issuer.mint --sub alice --scope "crm.read crm.write"
+
+x-common-env: &common-env
+  DEV_ISSUER_URL: http://issuer:9000
+  MCP_AUDIENCE: http://localhost:8000/mcp
+  API_AUDIENCE: corp-api
+  MCP_CLIENT_ID: mcp-secure-server
+  MCP_CLIENT_SECRET: dev-secret-change-me
+
+services:
+  issuer:
+    build: .
+    command: uvicorn --factory dev_issuer.issuer:app_from_env --host 0.0.0.0 --port 9000
+    environment:
+      <<: *common-env
+      DEV_ISSUER_KEY: /app/.dev/issuer_key.pem
+    ports: ["127.0.0.1:9000:9000"]
+
+  api:
+    build: .
+    command: uvicorn --factory mock_api.app:app_from_env --host 0.0.0.0 --port 9100
+    environment:
+      <<: *common-env
+    depends_on: [issuer]
+    # Наружу не публикуем: API доступен только MCP-серверу внутри сети compose.
+
+  mcp:
+    build: .
+    environment:
+      <<: *common-env
+      MCP_ISSUER: http://issuer:9000
+      API_BASE_URL: http://api:9100
+      HOST: 0.0.0.0
+      PORT: "8000"
+      MCP_ALLOWED_HOSTS: localhost:*,127.0.0.1:*
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: [issuer, api]

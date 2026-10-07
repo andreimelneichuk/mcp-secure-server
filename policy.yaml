@@ -1,0 +1,23 @@
+# RBAC-политика MCP-сервера.
+#
+# Модель: scope из access-токена -> роль -> разрешённые тулы и операции.
+# Всё, что явно не разрешено, запрещено (deny-by-default):
+#   * неизвестный scope не даёт никакой роли;
+#   * тул, которого нет в политике, не доступен никому;
+#   * операция write не выводится из read.
+
+scope_roles:
+  hr.read: hr_viewer
+  crm.read: sales_viewer
+  crm.write: sales_manager
+
+roles:
+  hr_viewer:
+    search_employees: [read]
+
+  sales_viewer:
+    search_deals: [read]
+
+  # Роли складываются: у менеджера в токене обычно и crm.read, и crm.write.
+  sales_manager:
+    update_deal_status: [write]
